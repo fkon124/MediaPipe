@@ -1,24 +1,3 @@
-"""
-Treniranje prilagođenog klasifikatora gesti na bazi MediaPipe Hands landmark-a.
-
-Umjesto mediapipe_model_maker/.task modela, koristi:
-  1. MediaPipe Hands – ekstrakcija 21 landmark-a iz svake slike dataseta
-  2. sklearn – treniranje RandomForest klasifikatora
-  3. joblib – izvoz modela u .pkl file
-
-Dataset struktura:
-  dataset/
-    none/
-    ok/
-    thumbs_up/
-    thumbs_down/
-    peace/
-    pointing/
-    love/
-    rock/
-    mobitel/
-"""
-
 import os
 import sys
 from pathlib import Path
