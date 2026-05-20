@@ -1,12 +1,3 @@
-"""
-Testiranje istreniranog klasifikatora gesti (.pkl + .txt).
-
-Temelj: MediaPipe Hands za ekstrakciju landmark-a,
-joblib/sklearn RandomForest za klasifikaciju.
-
-Zadano: test preko webcam-a s hardkodiranim modelom.
-"""
-
 import os
 import sys
 import time
