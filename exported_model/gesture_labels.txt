@@ -1,0 +1,9 @@
+none
+ok
+thumbs_up
+thumbs_down
+peace
+pointing
+love
+rock
+mobitel
