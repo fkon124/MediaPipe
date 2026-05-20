@@ -331,4 +331,4 @@ Pokušaj:
 
 # Licenca
 
-Projekt je dostupan pod MIT licencom.
+Projekt je open-source te služi u svrhe završnog rada
