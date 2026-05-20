@@ -301,23 +301,6 @@ Pokušaj:
 - povećati `n_estimators`
 - testirati drugi klasifikator
 
----
-
-# Moguća proširenja projekta
-
-- Dodavanje više gesti
-- Korištenje neuronskih mreža
-- Spremanje podataka u CSV bazu
-- Integracija s aplikacijama ili igrama
-- Upravljanje računalom pomoću gesti
-
----
-
-# Zahvale
-
-- MediaPipe — detekcija landmark točaka ruke
-- scikit-learn — Random Forest klasifikator
-- OpenCV — obrada slike i prikaz web kamere
 
 ---
 
