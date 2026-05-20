@@ -166,15 +166,7 @@ Izlaz:
 Q ili ESC → izlaz iz programa
 ```
 
----
 
-## 3. Testiranje na slici
-
-U skripti `test_gestures.py` nalazi se funkcija `run_image()` koja omogućuje testiranje modela na jednoj slici umjesto web kamere.
-
-Potrebno je samo promijeniti glavni dio skripte (`main`) i pozvati tu funkciju.
-
----
 
 # Kako projekt radi
 
