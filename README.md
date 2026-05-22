@@ -166,15 +166,7 @@ Izlaz:
 Q ili ESC → izlaz iz programa
 ```
 
----
 
-## 3. Testiranje na slici
-
-U skripti `test_gestures.py` nalazi se funkcija `run_image()` koja omogućuje testiranje modela na jednoj slici umjesto web kamere.
-
-Potrebno je samo promijeniti glavni dio skripte (`main`) i pozvati tu funkciju.
-
----
 
 # Kako projekt radi
 
@@ -309,26 +301,9 @@ Pokušaj:
 - povećati `n_estimators`
 - testirati drugi klasifikator
 
----
-
-# Moguća proširenja projekta
-
-- Dodavanje više gesti
-- Korištenje neuronskih mreža
-- Spremanje podataka u CSV bazu
-- Integracija s aplikacijama ili igrama
-- Upravljanje računalom pomoću gesti
-
----
-
-# Zahvale
-
-- MediaPipe — detekcija landmark točaka ruke
-- scikit-learn — Random Forest klasifikator
-- OpenCV — obrada slike i prikaz web kamere
 
 ---
 
 # Licenca
 
-Projekt je dostupan pod MIT licencom.
+Projekt je open-source te služi u svrhe završnog rada
