@@ -1,24 +1,3 @@
-"""
-Treniranje prilagođenog klasifikatora gesti na bazi MediaPipe Hands landmark-a.
-
-Umjesto mediapipe_model_maker/.task modela, koristi:
-  1. MediaPipe Hands – ekstrakcija 21 landmark-a iz svake slike dataseta
-  2. sklearn – treniranje RandomForest klasifikatora
-  3. joblib – izvoz modela u .pkl file
-
-Dataset struktura:
-  dataset/
-    none/
-    ok/
-    thumbs_up/
-    thumbs_down/
-    peace/
-    pointing/
-    love/
-    rock/
-    mobitel/
-"""
-
 import os
 import sys
 from pathlib import Path
@@ -67,7 +46,9 @@ LABEL_HR = {
 
 DATA_DIR = "dataset"
 EXPORT_DIR = "exported_model"
-N_ESTIMATORS = 200
+N_ESTIMATORS = 300
+MAX_DEPTH = 18
+MIN_SAMPLES_LEAF = 3
 VAL_FRACTION = 0.2
 CAMERA_ID = 0
 SAVE_INTERVAL = 0.3
@@ -83,6 +64,23 @@ def get_mp_hands():
 
 mp_hands, mp_drawing, mp_drawing_styles = get_mp_hands()
 
+
+# ---------------------------------------------------------------------------
+# Normalizacija
+# ---------------------------------------------------------------------------
+
+def normalize_landmarks(vec: np.ndarray) -> np.ndarray:
+    pts = vec.reshape(21, 3)
+    pts = pts - pts[0]
+    scale = np.linalg.norm(pts[9])
+    if scale > 1e-6:
+        pts = pts / scale
+    return pts.flatten().astype(np.float32)
+
+
+# ---------------------------------------------------------------------------
+# MediaPipe pomoćne funkcije
+# ---------------------------------------------------------------------------
 
 def ensure_dataset_root(data_dir: str) -> None:
     root = Path(data_dir).resolve()
@@ -109,12 +107,14 @@ def validate_dataset_root(data_dir: str) -> None:
 
 
 def extract_landmarks(image_bgr: np.ndarray, hands) -> np.ndarray | None:
+    """Izvuci i normaliziraj landmark vektor iz slike."""
     rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
     result = hands.process(rgb)
     if not result.multi_hand_landmarks:
         return None
     lm = result.multi_hand_landmarks[0].landmark
-    return np.array([[p.x, p.y, p.z] for p in lm], dtype=np.float32).flatten()
+    vec = np.array([[p.x, p.y, p.z] for p in lm], dtype=np.float32).flatten()
+    return normalize_landmarks(vec)
 
 
 def draw_landmarks_on_frame(frame: np.ndarray, hands_result) -> None:
@@ -128,6 +128,10 @@ def draw_landmarks_on_frame(frame: np.ndarray, hands_result) -> None:
                 mp_drawing_styles.get_default_hand_connections_style(),
             )
 
+
+# ---------------------------------------------------------------------------
+# Prikupljanje uzoraka kamerom
+# ---------------------------------------------------------------------------
 
 def collect_samples(data_dir: str, camera_id: int, save_interval: float) -> None:
     root = Path(data_dir).resolve()
@@ -207,6 +211,10 @@ def collect_samples(data_dir: str, camera_id: int, save_interval: float) -> None
     cv2.destroyAllWindows()
 
 
+# ---------------------------------------------------------------------------
+# Učitavanje dataseta
+# ---------------------------------------------------------------------------
+
 def load_dataset(data_dir: str) -> tuple[np.ndarray, np.ndarray, list[str]]:
     root = os.path.abspath(data_dir)
 
@@ -231,7 +239,7 @@ def load_dataset(data_dir: str) -> tuple[np.ndarray, np.ndarray, list[str]]:
                 if arr is None or arr.shape != (63,):
                     skipped += 1
                     continue
-                X.append(arr.astype(np.float32))
+                X.append(normalize_landmarks(arr))
                 y.append(label_to_idx[label])
                 total_images += 1
         else:
@@ -257,6 +265,10 @@ def load_dataset(data_dir: str) -> tuple[np.ndarray, np.ndarray, list[str]]:
     return np.array(X, dtype=np.float32), np.array(y, dtype=np.int32), label_names
 
 
+# ---------------------------------------------------------------------------
+# Trening i export
+# ---------------------------------------------------------------------------
+
 def train_and_export(data_dir: str, export_dir: str, n_estimators: int, val_fraction: float) -> None:
     try:
         from sklearn.ensemble import RandomForestClassifier
@@ -278,10 +290,13 @@ def train_and_export(data_dir: str, export_dir: str, n_estimators: int, val_frac
     )
 
     print(f"Trening: {len(X_train)}, validacija: {len(X_val)}")
-    print(f"\nTreniranje RandomForest (n_estimators={n_estimators}) ...")
+    print(f"\nTreniranje RandomForest (n_estimators={n_estimators}, max_depth={MAX_DEPTH}, min_samples_leaf={MIN_SAMPLES_LEAF}) ...")
+
     clf = RandomForestClassifier(
         n_estimators=n_estimators,
-        max_depth=None,
+        max_depth=MAX_DEPTH,
+        min_samples_leaf=MIN_SAMPLES_LEAF,
+        max_features="sqrt",
         random_state=42,
         n_jobs=-1,
     )
@@ -301,6 +316,10 @@ def train_and_export(data_dir: str, export_dir: str, n_estimators: int, val_frac
     print(f"Model spremljen: {model_path}")
     print(f"Labele spremljene: {labels_path}")
 
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
 def main() -> None:
     print("Pokreće se trening gesti s hardkodiranim parametrima.")

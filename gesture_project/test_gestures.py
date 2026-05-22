@@ -1,12 +1,3 @@
-"""
-Testiranje istreniranog klasifikatora gesti (.pkl + .txt).
-
-Temelj: MediaPipe Hands za ekstrakciju landmark-a,
-joblib/sklearn RandomForest za klasifikaciju.
-
-Zadano: test preko webcam-a s hardkodiranim modelom.
-"""
-
 import os
 import sys
 import time
@@ -42,6 +33,23 @@ def get_mp_hands():
 mp_hands, mp_drawing, mp_drawing_styles = get_mp_hands()
 
 
+# ---------------------------------------------------------------------------
+# Normalizacija 
+# ---------------------------------------------------------------------------
+
+def normalize_landmarks(vec: np.ndarray) -> np.ndarray:
+    pts = vec.reshape(21, 3)
+    pts = pts - pts[0]
+    scale = np.linalg.norm(pts[9])
+    if scale > 1e-6:
+        pts = pts / scale
+    return pts.flatten().astype(np.float32)
+
+
+# ---------------------------------------------------------------------------
+# Učitavanje modela
+# ---------------------------------------------------------------------------
+
 def load_model(export_dir: str):
     try:
         import joblib
@@ -65,13 +73,19 @@ def load_model(export_dir: str):
     return clf, label_names
 
 
+# ---------------------------------------------------------------------------
+# Ekstrakcija i predikcija
+# ---------------------------------------------------------------------------
+
 def extract_landmarks(image_bgr: np.ndarray, hands) -> tuple[np.ndarray | None, str | None]:
+    """Izvuci i normaliziraj landmark vektor iz slike."""
     rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
     result = hands.process(rgb)
     if not result.multi_hand_landmarks:
         return None, None
     lm = result.multi_hand_landmarks[0].landmark
     vec = np.array([[p.x, p.y, p.z] for p in lm], dtype=np.float32).flatten()
+    vec = normalize_landmarks(vec)
     handedness = None
     if result.multi_handedness:
         handedness = result.multi_handedness[0].classification[0].label
@@ -96,6 +110,10 @@ def draw_landmarks_on_frame(frame: np.ndarray, hands_result) -> None:
                 mp_drawing_styles.get_default_hand_connections_style(),
             )
 
+
+# ---------------------------------------------------------------------------
+# Testiranje na slici
+# ---------------------------------------------------------------------------
 
 def run_image(clf, label_names: list[str], image_path: str) -> None:
     img = cv2.imread(image_path)
@@ -123,13 +141,22 @@ def run_image(clf, label_names: list[str], image_path: str) -> None:
     cv2.destroyAllWindows()
 
 
+# ---------------------------------------------------------------------------
+# Testiranje webcamom
+# ---------------------------------------------------------------------------
+
 def run_webcam(clf, label_names: list[str], camera_id: int) -> None:
     cap = cv2.VideoCapture(camera_id)
     if not cap.isOpened():
         print(f"Ne mogu otvoriti kameru {camera_id}.", file=sys.stderr)
         sys.exit(1)
 
-    with mp_hands.Hands(static_image_mode=False, max_num_hands=1, min_detection_confidence=0.6, min_tracking_confidence=0.5) as hands:
+    with mp_hands.Hands(
+        static_image_mode=False,
+        max_num_hands=1,
+        min_detection_confidence=0.6,
+        min_tracking_confidence=0.5,
+    ) as hands:
         print("Izlaz: tipka Q ili ESC.")
         while True:
             ok, frame = cap.read()
@@ -146,6 +173,7 @@ def run_webcam(clf, label_names: list[str], camera_id: int) -> None:
             if result.multi_hand_landmarks:
                 lm = result.multi_hand_landmarks[0].landmark
                 vec = np.array([[p.x, p.y, p.z] for p in lm], dtype=np.float32).flatten()
+                vec = normalize_landmarks(vec)
                 hand = result.multi_handedness[0].classification[0].label if result.multi_handedness else "?"
                 name, score = predict(clf, label_names, vec)
                 hr = LABEL_HR.get(name, name)
@@ -164,6 +192,10 @@ def run_webcam(clf, label_names: list[str], camera_id: int) -> None:
     cap.release()
     cv2.destroyAllWindows()
 
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
 def main() -> None:
     print(f"Učitavanje modela iz: {EXPORT_DIR}")
