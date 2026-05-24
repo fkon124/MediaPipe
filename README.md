@@ -1,53 +1,40 @@
-# Prepoznavanje geste ruke pomoću MediaPipe-a
+# Prepoznavanje gesti ruke pomoću MediaPipe-a
 
 Sustav za prepoznavanje gesti ruke temeljen na **MediaPipe Hands** biblioteci i **Random Forest** klasifikatoru iz `scikit-learn` paketa.  
-Projekt omogućuje prikupljanje vlastitog skupa podataka, treniranje modela i prepoznavanje gesti u stvarnom vremenu pomoću web kamere.
+Projekt omogućuje prikupljanje vlastitog skupa podataka kamerom, treniranje modela i prepoznavanje gesti u stvarnom vremenu.
 
 ---
 
 ## Pregled projekta
 
-Ovaj projekt koristi računalni vid za detekciju i klasifikaciju gesti ruke.  
-MediaPipe prepoznaje 21 ključnu točku šake (*landmark*), dok model strojnog učenja klasificira gestu na temelju tih podataka.
+MediaPipe prepoznaje 21 ključnu točku šake (*landmark*), svaka s koordinatama `(x, y, z)` — ukupno **63 numeričke značajke**. Landmark vektor se normalizira (translacija na zapešće, skaliranje prema udaljenosti točke 9) kako bi model bio neovisan o poziciji i veličini ruke u kadru.
 
-Projekt se sastoji od dvije glavne skripte:
+Projekt se sastoji od dvije skripte:
 
-- `train_gestures.py` → prikupljanje podataka i treniranje modela
-- `test_gestures.py` → testiranje modela uživo preko web kamere
-
----
-
-## Funkcionalnosti
-
-- Detekcija ruke i izdvajanje 21 landmark točke
-- Pretvaranje landmark-ova u 63 numeričke značajke `(x, y, z)`
-- Interaktivno prikupljanje podataka pomoću tipkovnice
-- Treniranje vlastitog Random Forest modela
-- Spremanje istreniranog modela pomoću `joblib`
-- Prepoznavanje gesti u stvarnom vremenu
-- Vizualni prikaz landmark točaka i predviđene geste
+- `train_gestures.py` — interaktivno prikupljanje uzoraka kamerom i treniranje modela
+- `test_gestures.py` — prepoznavanje gesti u stvarnom vremenu ili na pojedinačnoj slici
 
 ---
 
 ## Podržane geste
 
-| Gesta | Opis |
-|---|---|
-| `none` | nema geste |
-| `ok` | OK znak |
-| `thumbs_up` | palac gore |
-| `thumbs_down` | palac dolje |
-| `peace` | znak mira |
-| `pointing` | pokazivanje prstom |
-| `love` | I love you |
-| `rock` | rock znak |
-| `mobitel` | palac + mali prst |
+| Ključ | Gesta | Opis |
+|-------|-------|------|
+| `1` | `none` | nema geste |
+| `2` | `ok` | OK znak |
+| `3` | `thumbs_up` | palac gore |
+| `4` | `thumbs_down` | palac dolje |
+| `5` | `peace` | znak mira |
+| `6` | `pointing` | pokazivanje prstom |
+| `7` | `love` | I love you |
+| `8` | `rock` | rock znak |
+| `9` | `mobitel` | palac + mali prst |
 
 ---
 
 ## Tehnologije
 
-- Python 3.10.x
+- Python 3.10+
 - OpenCV
 - MediaPipe `0.10.14`
 - NumPy
@@ -71,7 +58,7 @@ cd ime-repozitorija
 pip install opencv-python mediapipe==0.10.14 numpy scikit-learn joblib
 ```
 
-Ili pomoću `requirements.txt` datoteke:
+Ili putem `requirements.txt`:
 
 ```txt
 opencv-python
@@ -81,11 +68,11 @@ scikit-learn
 joblib
 ```
 
-Instalacija:
-
 ```bash
 pip install -r requirements.txt
 ```
+
+> **Napomena:** Koristi točno verziju `mediapipe==0.10.14`. Novije verzije ne podržavaju `mp.solutions` sučelje koje projekt koristi.
 
 ---
 
@@ -99,190 +86,131 @@ pip install -r requirements.txt
 │   ├── none/
 │   ├── ok/
 │   ├── thumbs_up/
-│   └── ...
+│   ├── thumbs_down/
+│   ├── peace/
+│   ├── pointing/
+│   ├── love/
+│   ├── rock/
+│   └── mobitel/
 ├── exported_model/
 │   ├── gesture_classifier.pkl
 │   └── gesture_labels.txt
 └── README.md
 ```
 
+Mape u `dataset/` automatski se kreiraju pri prvom pokretanju `train_gestures.py`. Svaki uzorak sprema se kao `.npy` datoteka (vektor oblika `(63,)`). Ako mapa sadrži `.npy` datoteke, one se koriste za trening; inače se automatski obrađuju slikovne datoteke (`.jpg`, `.jpeg`, `.png`, `.bmp`, `.webp`).
+
 ---
 
-# Korištenje
+## Korištenje
 
-## 1. Prikupljanje podataka i treniranje modela
-
-Pokreni:
+### 1. Prikupljanje podataka i treniranje modela
 
 ```bash
 python train_gestures.py
 ```
 
-Otvorit će se prikaz web kamere.
+Otvorit će se prikaz web kamere. Odaberi gestu tipkama i pritisni `S` za snimanje uzorka.
 
-### Kontrole
+#### Kontrole
 
 | Tipka | Funkcija |
-|---|---|
-| `1 - 9` | odabir geste |
-| `S` | spremanje trenutnog uzorka |
-| `Q` ili `ESC` | izlaz |
+|-------|----------|
+| `1` – `9` | odabir geste (vidi tablicu gesta) |
+| `S` | spremi trenutni uzorak (min. razmak: 0.3 s) |
+| `Q` ili `ESC` | izlaz i pokretanje treninga |
 
-Nakon završetka prikupljanja podataka skripta automatski:
+Na ekranu se prikazuju: naziv aktivne geste, oznaka ruke (lijeva/desna) i broj dosad snimljenih uzoraka za odabranu gestu.
 
-- učitava spremljene uzorke
-- dijeli podatke na trening i validaciju
-- trenira Random Forest klasifikator
-- sprema model u `exported_model/`
+#### Automatski trening
 
-### Preporuka
+Nakon zatvaranja kamere skripta automatski:
+1. učitava sve `.npy` uzorke iz `dataset/`
+2. dijeli podatke na trening (80 %) i validaciju (20 %)
+3. trenira `RandomForestClassifier` (`n_estimators=300`, `max_depth=18`, `min_samples_leaf=3`)
+4. ispisuje `classification_report` za validacijski skup
+5. sprema model u `exported_model/gesture_classifier.pkl` i labele u `exported_model/gesture_labels.txt`
 
-Za bolje rezultate preporučuje se:
+#### Preporuka za kvalitetu modela
 
 - minimalno 50–100 uzoraka po gesti
-- različiti kutovi ruke
-- različita udaljenost od kamere
-- različito osvjetljenje i pozadina
+- snimaj pod različitim kutovima i udaljenostima ruke
+- variiraj osvjetljenje i pozadinu
 
 ---
 
-## 2. Testiranje modela uživo
-
-Pokreni:
+### 2. Testiranje modela uživo
 
 ```bash
 python test_gestures.py
 ```
 
-Sustav će:
+Sustav otvara kameru (zadana: `CAMERA_ID = 0`), za svaki frame:
+1. detektira ruku i izvlači landmarke
+2. normalizira vektor
+3. klasificira gestu i prikazuje naziv, pouzdanost (0–1) i oznaku ruke
 
-- detektirati ruku
-- prikazati landmark točke
-- prikazati predviđenu gestu i razinu sigurnosti modela
+#### Testiranje na jednoj slici
 
-Izlaz:
-
-```bash
-Q ili ESC → izlaz iz programa
-```
-
-
-
-# Kako projekt radi
-
-## 1. Detekcija ruke
-
-MediaPipe Hands detektira 21 landmark točku na šaci.
-
-Svaka točka sadrži:
-
-- `x`
-- `y`
-- `z`
-
-koordinate.
-
-Ukupno:
-
-```text
-21 × 3 = 63 značajke
-```
-
----
-
-## 2. Prikupljanje podataka
-
-Svaki uzorak sprema se kao `.npy` datoteka unutar odgovarajuće mape geste.
-
-Primjer:
-
-```text
-dataset/peace/sample_01.npy
-```
-
----
-
-## 3. Treniranje modela
-
-Za klasifikaciju se koristi:
+Funkcija `run_image` dostupna je programski:
 
 ```python
-RandomForestClassifier
+from test_gestures import load_model, run_image
+
+clf, label_names = load_model("exported_model")
+run_image(clf, label_names, "moja_slika.jpg")
 ```
 
-Model uči prepoznavati obrasce landmark točaka za svaku gestu.
+#### Kontrole
+
+| Tipka | Funkcija |
+|-------|----------|
+| `Q` ili `ESC` | izlaz |
 
 ---
 
-## 4. Prepoznavanje u stvarnom vremenu
+## Kako projekt radi
 
-Za svaki frame web kamere:
+### Normalizacija landmarka
 
-1. MediaPipe izdvoji landmark točke
-2. Landmark podaci pretvaraju se u feature vektor
-3. Model predviđa gestu
-4. Rezultat se prikazuje na ekranu
+```python
+pts = pts - pts[0]          # translacija: zapešće (točka 0) u ishodište
+scale = np.linalg.norm(pts[9])  # skaliranje: udaljenost sredine dlana
+pts = pts / scale
+```
+
+Normalizacija čini model neosjetljivim na poziciju ruke u kadru i na udaljenost od kamere.
+
+### Parametri modela (promjenjivi u `train_gestures.py`)
+
+| Varijabla | Zadana vrijednost | Opis |
+|-----------|------------------|------|
+| `N_ESTIMATORS` | 300 | broj stabala |
+| `MAX_DEPTH` | 18 | maksimalna dubina stabla |
+| `MIN_SAMPLES_LEAF` | 3 | minimalni uzorci po listu |
+| `VAL_FRACTION` | 0.2 | udio validacijskog skupa |
+| `CAMERA_ID` | 0 | indeks kamere |
+| `SAVE_INTERVAL` | 0.3 | minimalni razmak između snimanja (sekunde) |
 
 ---
-
-# Prilagodba projekta
 
 ## Dodavanje novih gesti
 
-Potrebno je:
-
-1. dodati novu mapu u `dataset/`
-2. ažurirati `GESTURE_FOLDERS`
-3. ažurirati `LABEL_HR`
-
----
-
-## Promjena parametara modela
-
-U `train_gestures.py` moguće je promijeniti:
-
-```python
-N_ESTIMATORS
-VAL_FRACTION
-```
+1. Dodaj naziv u `GESTURE_FOLDERS` (obje skripte)
+2. Dodaj prijevod u `LABEL_HR` (obje skripte)
+3. Dodaj tipku u `KEY_TO_GESTURE` (`train_gestures.py`)
+4. Ponovo prikupi uzorke i treniraj model
 
 ---
 
-## Promjena kamere
+## Rješavanje problema
 
-Promijeni:
+### MediaPipe ne detektira ruku
 
-```python
-CAMERA_ID = 0
-```
+- Provjeri osvjetljenje i vidljivost cijele šake
+- Po potrebi smanji `min_detection_confidence` u kodu
 
-Ako koristiš više kamera:
-
-- `0` → zadana kamera
-- `1` → druga kamera
-- `2` → treća kamera
-
----
-
-# Rješavanje problema
-
-## MediaPipe ne detektira ruku
-
-Provjeri:
-
-- da je ruka dobro osvijetljena
-- da je cijela šaka vidljiva
-- da pozadina nije previše kompleksna
-
-Po potrebi povećaj:
-
-```python
-min_detection_confidence
-```
-
----
-
-## Greška: `mediapipe.solutions` ne postoji
+### `mediapipe.solutions` ne postoji
 
 Koristi točnu verziju:
 
@@ -290,20 +218,18 @@ Koristi točnu verziju:
 pip install mediapipe==0.10.14
 ```
 
----
+### Model ne postoji pri pokretanju `test_gestures.py`
 
-## Model ima nisku točnost
+Prethodno pokreni `train_gestures.py` kako bi se generirali `exported_model/gesture_classifier.pkl` i `exported_model/gesture_labels.txt`.
 
-Pokušaj:
+### Niska točnost modela
 
-- prikupiti više podataka
-- koristiti različite pozicije ruke
-- povećati `n_estimators`
-- testirati drugi klasifikator
-
+- Prikupi više uzoraka po gesti
+- Snimi pod različitim uvjetima (kut, osvjetljenje, udaljenost)
+- Povećaj `N_ESTIMATORS`
 
 ---
 
-# Licenca
+## Licenca
 
-Projekt je open-source te služi u svrhe završnog rada
+Projekt je open-source i namijenjen u svrhe završnog rada.

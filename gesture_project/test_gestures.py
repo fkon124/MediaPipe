@@ -18,7 +18,9 @@ LABEL_HR = {
     "mobitel": "mobitel (palac i mali prst)",
 }
 
-EXPORT_DIR = "exported_model"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+EXPORT_DIR = os.path.join(PROJECT_ROOT, "exported_model")
 CAMERA_ID = 0
 
 
@@ -74,7 +76,7 @@ def load_model(export_dir: str):
 
 
 # ---------------------------------------------------------------------------
-# Ekstrakcija i predikcija
+# Extract i predikcija
 # ---------------------------------------------------------------------------
 
 def extract_landmarks(image_bgr: np.ndarray, hands) -> tuple[np.ndarray | None, str | None]:

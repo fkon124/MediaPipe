@@ -44,8 +44,10 @@ LABEL_HR = {
     "mobitel": "mobitel",
 }
 
-DATA_DIR = "dataset"
-EXPORT_DIR = "exported_model"
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+DATA_DIR = str(PROJECT_ROOT / "dataset")
+EXPORT_DIR = str(PROJECT_ROOT / "exported_model")
 N_ESTIMATORS = 300
 MAX_DEPTH = 18
 MIN_SAMPLES_LEAF = 3
@@ -101,9 +103,11 @@ def validate_dataset_root(data_dir: str) -> None:
 
     for folder in GESTURE_FOLDERS:
         actual = available[folder.lower()]
-        n = len([p for p in os.listdir(os.path.join(root, actual)) if p.lower().endswith(IMAGE_EXTENSIONS)])
-        if n == 0:
-            raise ValueError(f"Mapa '{actual}' nema slikovnih datoteka.")
+        entries = os.listdir(os.path.join(root, actual))
+        n_img = len([p for p in entries if p.lower().endswith(IMAGE_EXTENSIONS)])
+        n_npy = len([p for p in entries if p.lower().endswith(".npy")])
+        if n_img == 0 and n_npy == 0:
+            raise ValueError(f"Mapa '{actual}' nema slikovnih ni .npy datoteka.")
 
 
 def extract_landmarks(image_bgr: np.ndarray, hands) -> np.ndarray | None:
@@ -239,7 +243,7 @@ def load_dataset(data_dir: str) -> tuple[np.ndarray, np.ndarray, list[str]]:
                 if arr is None or arr.shape != (63,):
                     skipped += 1
                     continue
-                X.append(normalize_landmarks(arr))
+                X.append(arr.astype(np.float32))
                 y.append(label_to_idx[label])
                 total_images += 1
         else:
