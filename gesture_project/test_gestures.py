@@ -34,17 +34,49 @@ def get_mp_hands():
 
 mp_hands, mp_drawing, mp_drawing_styles = get_mp_hands()
 
+# ----------------------------------------------------------------------------
+# Handedness problem
+# ----------------------------------------------------------------------------
+
+def normalize_handedness(vec: np.ndarray, handedness : str) -> np.ndarray:
+    pts = vec.reshape(21, 3).copy()
+    if handedness.lower() == "left":
+        pts[:, 0] = -pts[:, 0]
+    return pts.flatten()
 
 # ---------------------------------------------------------------------------
 # Normalizacija 
 # ---------------------------------------------------------------------------
 
 def normalize_landmarks(vec: np.ndarray) -> np.ndarray:
-    pts = vec.reshape(21, 3)
+    pts = vec.reshape(21, 3).astype(np.float64)
+
+    # translacija
     pts = pts - pts[0]
+
+    # skaliranje
     scale = np.linalg.norm(pts[9])
-    if scale > 1e-6:
-        pts = pts / scale
+    if scale < 1e-6:
+        return pts.flatten().astype(np.float32)
+    pts = pts / scale
+
+    # Gram-Schmidt ortogonalizacija
+    y_axis = pts[9] / (np.linalg.norm(pts[9]) + 1e-9)
+
+    side_raw = pts[17]
+    side_norm = np.linalg.norm(side_raw)
+    side_raw = side_raw / side_norm if side_norm > 1e-6 else np.array([1.0, 0.0, 0.0])
+
+    z_axis = np.cross(y_axis, side_raw)
+    z_norm = np.linalg.norm(z_axis)
+    z_axis = z_axis / z_norm if z_norm > 1e-6 else np.array([0.0, 0.0, 1.0])
+
+    x_axis = np.cross(y_axis, z_axis)
+
+    # rotacija
+    R = np.stack([x_axis, y_axis, z_axis], axis=0) 
+    pts = pts @ R.T
+
     return pts.flatten().astype(np.float32)
 
 
@@ -80,13 +112,14 @@ def load_model(export_dir: str):
 # ---------------------------------------------------------------------------
 
 def extract_landmarks(image_bgr: np.ndarray, hands) -> tuple[np.ndarray | None, str | None]:
-    """Izvuci i normaliziraj landmark vektor iz slike."""
     rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
     result = hands.process(rgb)
     if not result.multi_hand_landmarks:
         return None, None
     lm = result.multi_hand_landmarks[0].landmark
     vec = np.array([[p.x, p.y, p.z] for p in lm], dtype=np.float32).flatten()
+    handedness = result.multi_handedness[0].classification[0].label if result.multi_handedness else "Right"
+    vec = normalize_handedness(vec, handedness)
     vec = normalize_landmarks(vec)
     handedness = None
     if result.multi_handedness:
@@ -138,7 +171,7 @@ def run_image(clf, label_names: list[str], image_path: str) -> None:
     print(f"Gesta: {hr} ({name}), pouzdanost: {score:.2f}, ruka: {hand or '?'}")
 
     cv2.putText(img, f"{hr} ({score:.2f}) [{hand or '?'}]", (12, 36), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2, cv2.LINE_AA)
-    cv2.imshow("Gesture test - slika", img)
+    cv2.imshow("Testiranje gesti - slika", img)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
@@ -184,7 +217,7 @@ def run_webcam(clf, label_names: list[str], camera_id: int) -> None:
                 line = "Nema geste"
 
             cv2.putText(frame, line, (12, 36), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2, cv2.LINE_AA)
-            cv2.imshow("Gesture test", frame)
+            cv2.imshow("Testiranje gesti", frame)
 
             key = cv2.waitKey(1) & 0xFF
             if key in (ord("q"), ord("Q"), 27):

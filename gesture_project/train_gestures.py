@@ -48,9 +48,9 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
 DATA_DIR = str(PROJECT_ROOT / "dataset")
 EXPORT_DIR = str(PROJECT_ROOT / "exported_model")
-N_ESTIMATORS = 300
-MAX_DEPTH = 18
-MIN_SAMPLES_LEAF = 3
+N_ESTIMATORS = 150
+MAX_DEPTH = 10
+MIN_SAMPLES_LEAF = 5
 VAL_FRACTION = 0.2
 CAMERA_ID = 0
 SAVE_INTERVAL = 0.3
@@ -66,17 +66,50 @@ def get_mp_hands():
 
 mp_hands, mp_drawing, mp_drawing_styles = get_mp_hands()
 
+# ----------------------------------------------------------------------------
+# Handedness problem
+# ----------------------------------------------------------------------------
+
+def normalize_handedness(vec: np.ndarray, handedness : str) -> np.ndarray:
+    pts = vec.reshape(21, 3).copy()
+    if handedness.lower() == "left":
+        pts[:, 0] = -pts[:, 0]
+    return pts.flatten()
 
 # ---------------------------------------------------------------------------
 # Normalizacija
 # ---------------------------------------------------------------------------
 
+
 def normalize_landmarks(vec: np.ndarray) -> np.ndarray:
-    pts = vec.reshape(21, 3)
+    pts = vec.reshape(21, 3).astype(np.float64)
+
+    # translacija
     pts = pts - pts[0]
+
+    # skaliranje
     scale = np.linalg.norm(pts[9])
-    if scale > 1e-6:
-        pts = pts / scale
+    if scale < 1e-6:
+        return pts.flatten().astype(np.float32)
+    pts = pts / scale
+
+    # Gram-Schmidt ortogonalizacija
+    y_axis = pts[9] / (np.linalg.norm(pts[9]) + 1e-9)
+
+    side_raw = pts[17]
+    side_norm = np.linalg.norm(side_raw)
+    side_raw = side_raw / side_norm if side_norm > 1e-6 else np.array([1.0, 0.0, 0.0])
+
+    z_axis = np.cross(y_axis, side_raw)
+    z_norm = np.linalg.norm(z_axis)
+    z_axis = z_axis / z_norm if z_norm > 1e-6 else np.array([0.0, 0.0, 1.0])
+
+    x_axis = np.cross(y_axis, z_axis)
+
+    # rotacija
+    R = np.stack([x_axis, y_axis, z_axis], axis=0) 
+    pts = pts @ R.T
+
     return pts.flatten().astype(np.float32)
 
 
@@ -118,6 +151,8 @@ def extract_landmarks(image_bgr: np.ndarray, hands) -> np.ndarray | None:
         return None
     lm = result.multi_hand_landmarks[0].landmark
     vec = np.array([[p.x, p.y, p.z] for p in lm], dtype=np.float32).flatten()
+    handedness = result.multi_handedness[0].classification[0].label if result.multi_handedness else "Right"
+    vec = normalize_handedness(vec, handedness)
     return normalize_landmarks(vec)
 
 
